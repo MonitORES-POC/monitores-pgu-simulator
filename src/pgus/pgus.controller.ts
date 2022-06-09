@@ -1,12 +1,20 @@
-import { Controller } from '@nestjs/common';
-import { EventPattern, MessagePattern, Payload } from '@nestjs/microservices';
+import { Controller, Inject, OnModuleInit } from '@nestjs/common';
+import {
+  ClientKafka,
+  EventPattern,
+  MessagePattern,
+  Payload,
+} from '@nestjs/microservices';
 import { PgusService } from './pgus.service';
 import { CreatePguDto } from './dto/create-pgu.dto';
 import { UpdatePguDto } from './dto/update-pgu.dto';
 
 @Controller()
-export class PgusController {
-  constructor(private readonly pgusService: PgusService) {}
+export class PgusController implements OnModuleInit {
+  constructor(
+    private readonly pgusService: PgusService,
+    @Inject('API_SERVICE') private readonly apiClient: ClientKafka,
+  ) {}
 
   @EventPattern('createPgu')
   create(data: any) {
@@ -31,5 +39,9 @@ export class PgusController {
   @MessagePattern('removePgu')
   remove(@Payload() id: number) {
     return this.pgusService.remove(id);
+  }
+
+  onModuleInit() {
+    this.apiClient.subscribeToResponseOf('get_constraint');
   }
 }

@@ -12,7 +12,7 @@ export class WeatherService {
   getWindWeatherData(): Observable<any> {
     return this.httpService
       .get(AppConstants.WEATHER_API + 'weather', {
-        params: { appid: AppConstants.api_key, lat: 22, lon: -80.8 },
+        params: { appid: AppConstants.api_key, lat: 51.36, lon: 3.11 },
       })
       .pipe(
         map((res) => {
