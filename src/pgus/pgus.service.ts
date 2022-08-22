@@ -212,7 +212,9 @@ export class PgusService {
       }
     }
     const now = new Date();
-    console.log('solar power emitted by pgu' + id + ':' + powerOutput);
+    console.log(
+      'Historical wind power emitted by pgu' + id + ':' + powerOutput,
+    );
     this.apiClient.emit('pgu-measures', new MeasureEvent(id, now, powerOutput));
   }
 
