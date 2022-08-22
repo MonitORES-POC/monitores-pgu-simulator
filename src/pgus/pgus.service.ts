@@ -33,14 +33,27 @@ export class PgusService {
           const powerLimit = await this.checkForConstraint(
             createPguEvent.newPgu.id,
           );
-          this.weatherService.getWindWeatherData().subscribe((windWeather) => {
-            this.produceWindPower(
-              windWeather,
+
+          if (createPguEvent.fromHistoricalData) {
+            this.produceFromHistoricalData(
               createPguEvent.newPgu.id,
-              createPguEvent.newPgu.amplificationFactor,
+              createPguEvent.isRespectful,
               powerLimit,
             );
-          });
+          } else {
+            this.weatherService
+              .getWindWeatherData()
+              .subscribe((windWeather) => {
+                this.produceWindPower(
+                  windWeather,
+                  createPguEvent.newPgu.id,
+                  createPguEvent.newPgu.amplificationFactor,
+                  createPguEvent.isRespectful,
+                  powerLimit,
+                );
+              });
+          }
+
           this.logger.warn(
             `time (${AppConstants.MINUTES}) for job ${jobName} to run!`,
           );
@@ -55,16 +68,25 @@ export class PgusService {
           const powerLimit = await this.checkForConstraint(
             createPguEvent.newPgu.id,
           );
-          this.weatherService
-            .getSolarWeatherData()
-            .subscribe((solarWeather) => {
-              this.produceWindPower(
-                solarWeather,
-                createPguEvent.newPgu.id,
-                createPguEvent.newPgu.amplificationFactor,
-                powerLimit,
-              );
-            });
+          if (createPguEvent.fromHistoricalData) {
+            this.produceFromHistoricalData(
+              createPguEvent.newPgu.id,
+              createPguEvent.isRespectful,
+              powerLimit,
+            );
+          } else {
+            this.weatherService
+              .getSolarWeatherData()
+              .subscribe((solarWeather) => {
+                this.produceWindPower(
+                  solarWeather,
+                  createPguEvent.newPgu.id,
+                  createPguEvent.newPgu.amplificationFactor,
+                  createPguEvent.isRespectful,
+                  powerLimit,
+                );
+              });
+          }
           this.logger.warn(
             `time (${AppConstants.MINUTES}) for job ${jobName} to run!`,
           );
@@ -99,6 +121,7 @@ export class PgusService {
     weatherData: WindWeatherDto,
     id: number,
     amplificationFactor: number,
+    isRespectful: boolean,
     powerLimit?: number,
   ) {
     let powerOutput: number;
@@ -122,7 +145,8 @@ export class PgusService {
         Cp = 0.15;
       }
       powerOutput =
-        (0.5 *
+        (amplificationFactor *
+          0.5 *
           Cp *
           AppConstants.Awind *
           rho *
@@ -131,10 +155,7 @@ export class PgusService {
         1000;
     }
     if (powerLimit !== null && powerLimit !== undefined) {
-      powerOutput =
-        powerOutput <= powerLimit
-          ? powerOutput * amplificationFactor
-          : powerLimit * 0.9;
+      powerOutput = powerOutput <= powerLimit ? powerOutput : powerLimit * 0.9;
     }
     const now = new Date();
     console.log('wind power emitted by pgu' + id + ':' + powerOutput);
@@ -145,18 +166,50 @@ export class PgusService {
     weatherData: SolarWeatherDto,
     id: number,
     amplificationFactor: number,
+    isRespectful: boolean,
     powerLimit?: number,
   ) {
     let powerOutput: number =
       AppConstants.Asolar *
       AppConstants.SolarEfficiency *
       AppConstants.PR *
-      weatherData.globalHorizontalIrradiance;
-    if (powerLimit) {
-      powerOutput =
-        powerOutput <= powerLimit
-          ? powerOutput * amplificationFactor
-          : powerLimit * 0.9;
+      weatherData.globalHorizontalIrradiance *
+      amplificationFactor;
+
+    if (powerLimit !== null && powerLimit !== undefined) {
+      if (isRespectful) {
+        powerOutput =
+          powerOutput <= powerLimit ? powerOutput : powerLimit * 0.9;
+      } else {
+        const randomNumber = Math.random();
+        if (randomNumber > 0.1) {
+          powerOutput =
+            powerOutput <= powerLimit ? powerOutput : powerLimit * 0.9;
+        }
+      }
+    }
+    const now = new Date();
+    console.log('solar power emitted by pgu' + id + ':' + powerOutput);
+    this.apiClient.emit('pgu-measures', new MeasureEvent(id, now, powerOutput));
+  }
+
+  produceFromHistoricalData(
+    id: number,
+    isRespectful: boolean,
+    powerLimit?: number,
+  ) {
+    let powerOutput = this.weatherService.getHistoricalProductionData();
+    if (powerLimit !== null && powerLimit !== undefined) {
+      if (isRespectful) {
+        powerOutput =
+          powerOutput <= powerLimit ? powerOutput : powerLimit * 0.9;
+      } else {
+        const randomNumber = Math.random();
+        if (randomNumber > 0.1) {
+          powerOutput =
+            powerOutput <= powerLimit ? powerOutput : powerLimit * 0.9;
+        }
+      }
     }
     const now = new Date();
     console.log('solar power emitted by pgu' + id + ':' + powerOutput);

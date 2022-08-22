@@ -1,13 +1,34 @@
 import { HttpService } from '@nestjs/axios';
-import { Injectable } from '@nestjs/common';
-import { map, Observable } from 'rxjs';
+import { Injectable, Logger } from '@nestjs/common';
+import { catchError, map, Observable, of } from 'rxjs';
 import { AppConstants } from 'src/app.constants';
 import { SolarWeatherDto } from './dto/solar-weather.dto';
 import { WindWeatherDto } from './dto/wind-weather.dto';
+import * as dfd from 'danfojs-node';
+import { DataFrame } from 'danfojs-node/dist/danfojs-base';
 
 @Injectable()
 export class WeatherService {
-  constructor(private httpService: HttpService) {}
+  private logger: Logger = new Logger('weather');
+  private productionData;
+  private dataIndex = 0;
+
+  constructor(private httpService: HttpService) {
+    this.initData();
+  }
+
+  async initData() {
+    const excel: DataFrame = await dfd.readCSV(
+      'src/dataset/WindForecast_20220807-20220810.csv',
+    );
+    this.productionData = excel['Measuredupscaled'].values;
+  }
+
+  getHistoricalProductionData() {
+    const powerOutput: number = parseFloat(this.productionData[this.dataIndex]);
+    this.dataIndex = (this.dataIndex + 1) % this.productionData.length;
+    return powerOutput;
+  }
 
   getWindWeatherData(): Observable<any> {
     return this.httpService
@@ -15,8 +36,9 @@ export class WeatherService {
         params: { appid: AppConstants.api_key, lat: 51.36, lon: 3.11 },
       })
       .pipe(
+        catchError(this.handleError<any>('getting weather', null)),
         map((res) => {
-          if (res.data['cod'] === '404') {
+          if (res === null || res.data['cod'] === '404') {
             console.log('City not found');
             return null;
           }
@@ -35,8 +57,9 @@ export class WeatherService {
         params: { appid: AppConstants.api_key, lat: 22, lon: -80.8 },
       })
       .pipe(
+        catchError(this.handleError<any>('getting weather', null)),
         map((res) => {
-          if (res.data['cod'] === '404') {
+          if (res === null || res.data['cod'] === '404') {
             console.log('City not found');
             return null;
           }
@@ -46,5 +69,24 @@ export class WeatherService {
           return solarData;
         }),
       );
+  }
+
+  /**
+   * Handle Http operation that failed.
+   * Let the app continue.
+   * @param operation - name of the operation that failed
+   * @param result - optional value to return as the observable result
+   */
+  private handleError<T>(operation = 'operation', result?: T) {
+    return (error: any): Observable<T> => {
+      // TODO: send the error to remote logging infrastructure
+      this.logger.error(JSON.stringify(error)); // log to console instead
+
+      // TODO: better job of transforming error for user consumption
+      this.logger.log(`${operation} failed: ${error.message}`);
+
+      // Let the app keep running by returning an empty result.
+      return of(result as T);
+    };
   }
 }

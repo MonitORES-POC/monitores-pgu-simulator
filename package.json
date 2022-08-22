@@ -30,6 +30,7 @@
     "@nestjs/schedule": "^2.0.1",
     "@types/cron": "^2.0.0",
     "cron": "^2.0.0",
+    "danfojs-node": "^1.1.1",
     "kafkajs": "^2.0.2",
     "reflect-metadata": "^0.1.13",
     "rimraf": "^3.0.2",
